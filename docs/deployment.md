@@ -4,7 +4,7 @@
 
 - Автор: `l1onesss` — Чирков Лев Сергеевич.
 - Репозиторий: https://github.com/L1oneSs/express-final
-- PostgreSQL: Supabase 17.11, таблица `public.tasks`.
+- PostgreSQL: Supabase 17.11, учебные таблицы `public.tasks` и `public.task_lists`.
 - HTTPS: https://express-final-l1onesss.onrender.com
 - Render: `express-final-l1onesss`, Free, Frankfurt, `srv-dbs33567bikc73efe2ng`, автоматическая публикация ветки `main`.
 - Схема уже применена к Supabase через MCP. Повторно `db:init` здесь не запускать.
@@ -22,7 +22,7 @@
 
 ## Новая БД
 
-`db/schema.sql` предназначен для чистой PostgreSQL-базы Supabase. Он создаёт `tasks`, индекс, RLS и роли без паролей. Требуются административные права. Роли `anon`/`authenticated` в схеме относятся к Supabase; для чистой PostgreSQL без Supabase нужно убрать их из REVOKE.
+`db/schema.sql` предназначен для чистой PostgreSQL-базы Supabase. Он создаёт `tasks`, индекс, RLS и роли без паролей; следом `db/lists.sql` создаёт именованные списки, триггер регистрации и внешний ключ. `npm run db:init` применяет оба файла. Для существующей старой схемы применяется только `db/lists.sql` — эта миграция уже выполнена в текущем проекте. Требуются административные права. Роли `anon`/`authenticated` относятся к Supabase; для чистой PostgreSQL без Supabase нужно убрать их из REVOKE.
 
 Сначала настроить `DATABASE_ADMIN_URL` только для команды `npm run db:init`. После инициализации назначить **разные случайные пароли** ролям через защищённый SQL Editor:
 
@@ -72,7 +72,7 @@ Render Free засыпает после 15 минут без входящих з
 psql "host=aws-1-eu-west-2.pooler.supabase.com port=5432 dbname=postgres user=todo_reviewer.mevteqjckaucvdptbhhw sslmode=verify-full sslrootcert=certs/supabase-ca.crt" -W
 ```
 
-Права преподавателя: SELECT/INSERT/UPDATE/DELETE на `public.tasks`; без TRUNCATE, изменения схемы, ролей, доступа к `auth.users`. Не выдавать роль `postgres`, Supabase service key и пароль Helios.
+Права преподавателя: SELECT/INSERT/UPDATE/DELETE на учебные `public.tasks` и `public.task_lists`; без TRUNCATE, изменения схемы, ролей, доступа к `auth.users`. Внешний ключ запрещает удалить список с делами. Не выдавать роль `postgres`, Supabase service key и пароль Helios.
 
 Проверять на отдельном runId, не удаляя персональное дело:
 
@@ -91,7 +91,7 @@ DELETE FROM public.tasks
 WHERE owner_login='l1onesss' AND run_id='teacher_check';
 ```
 
-В интерфейсе открыть `teacher_check` и нажимать «Обновить» после независимого изменения. Это подключение к самой PostgreSQL, а не дополнительный маршрут приложения.
+В интерфейсе выбрать появившийся список `teacher_check`: изменения подхватываются автоматически каждые десять секунд и при возвращении на вкладку. Это подключение к самой PostgreSQL, а не дополнительный маршрут приложения.
 
 ## API
 
@@ -107,7 +107,24 @@ WHERE owner_login='l1onesss' AND run_id='teacher_check';
 | PATCH /api/tasks/:id/ | title и/или done | 200 либо 404 |
 | DELETE /api/tasks/:id/ | UUID | 204 без тела либо 404 |
 
-Ошибочные JSON, типы, лишние поля, неверные UUID/runId, пустые PATCH — 400. Неверный токен — 401. Сбой БД — 503. Ошибки имеют единственное поле `error` и Content-Type application/json. Кнопка «Обновить» перечитывает БД; автоматических фоновых синхронизаций нет.
+Ошибочные JSON, типы, лишние поля, неверные UUID/runId, пустые PATCH — 400. Неверный токен — 401. Сбой БД — 503. Ошибки имеют единственное поле `error` и Content-Type application/json. Обязательные шесть полей дела и маршруты из PDF не изменены.
+
+## Дополнительный API списков
+
+Все маршруты требуют тот же Bearer-токен. Оба токена разрешают учебный CRUD; токен преподавателя определяет роль, а не его личное имя. `/api/author/` по требованиям PDF всегда описывает студента, `/api/session/` возвращает текущую роль и отдельно автора.
+
+| Метод и путь | Тело / параметры | Результат |
+| --- | --- | --- |
+| GET /api/session/ | — | `{role:"owner"\|"reviewer",displayName,author:{login,fullName}}` |
+| GET /api/lists/ | — | Массив `{id,runId,name,taskCount,doneCount,createdAt}` |
+| POST /api/lists/ | `{name,runId?}` | 201; без runId сервер генерирует стабильный ключ; занятый ключ — 409 |
+| GET /api/lists/:id/ | UUID | 200, метаданные списка; отсутствующий — 404 |
+| PATCH /api/lists/:id/ | Только `{name}` | 200; runId и id не меняются |
+| GET /api/lists/:id/tasks/ | Необязательный `status=all\|active\|done` | `{list:{id,runId,name,taskCount,doneCount,createdAt},tasks:[...]}`; дела содержат прежние шесть полей |
+
+Название списка после trim: 1–100 символов. Пустое имя, лишние поля, неподходящие типы и неверный status — 400. Списки принадлежат настроенному автору; другая ownerLogin не принимается. Один `(owner_login,run_id)` соответствует одному списку. `taskCount` и `doneCount` вычисляются по актуальным делам и не хранятся отдельно.
+
+При POST дела с новым runId триггер SECURITY INVOKER создаёт запись списка без повышения привилегий. Для runId `manual` исходное название — «Основной список», для остальных технических ключей — сам runId; их можно переименовать через API или интерфейс. Существующие записи сохранены. API удаления списков не добавлялся; независимый SQL DELETE допустим только для пустого списка.
 
 ## Сдача
 

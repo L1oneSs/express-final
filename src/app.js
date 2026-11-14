@@ -1,5 +1,5 @@
 import express from 'express';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,13 +30,21 @@ function validateBody(body, patch = false) {
   }
   return result;
 }
+function validateList(body, patch = false) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new InputError('Ожидается JSON-объект');
+  const allowed = patch ? ['name'] : ['name', 'runId'];
+  if (!Object.hasOwn(body, 'name') || Object.keys(body).some(key => !allowed.includes(key))) throw new InputError('Укажите название списка без лишних полей');
+  if (typeof body.name !== 'string' || Array.from(body.name.trim()).length < 1 || Array.from(body.name.trim()).length > 100) throw new InputError('Название списка: от 1 до 100 символов');
+  if (Object.hasOwn(body, 'runId') && !validRunId(body.runId)) throw new InputError('Некорректный runId');
+  return { name: body.name.trim(), ...(!patch ? { runId: body.runId || `list_${randomUUID().replaceAll('-', '')}` } : {}) };
+}
 
 export function createApp({ author, tokens, repository }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('strict routing', true);
   app.set('query parser', 'simple');
-  const tokenHashes = tokens.map(hash);
+  const tokenHashes = tokens.map((token, index) => ({ digest: hash(token), role: index === 0 ? 'owner' : 'reviewer' }));
   app.use((req, res, next) => {
     res.set({
       'X-Content-Type-Options': 'nosniff',
@@ -52,16 +60,26 @@ export function createApp({ author, tokens, repository }) {
     res.set('Cache-Control', 'no-store');
     const match = /^Bearer ([^\s]+)$/i.exec(req.get('authorization') || '');
     const candidate = hash(match?.[1] || '');
-    const valid = tokenHashes.map(expected => timingSafeEqual(candidate, expected)).some(Boolean);
-    if (!match || !valid) {
+    const matches = tokenHashes.map(entry => timingSafeEqual(candidate, entry.digest));
+    const matchedIndex = matches.indexOf(true);
+    if (!match || matchedIndex < 0) {
       res.set('WWW-Authenticate', 'Bearer');
       return res.status(401).json({ error: 'Неверный или отсутствующий токен' });
     }
+    req.accessRole = tokenHashes[matchedIndex].role;
     next();
   });
   // Authenticate before parsing JSON, including malformed unauthorized requests.
   api.use(express.json({ limit: '16kb', strict: true }));
   api.get('/author/', (req, res) => res.json(author));
+  api.get('/session/', (req, res) => res.json({ role: req.accessRole, displayName: req.accessRole === 'reviewer' ? 'Преподаватель' : author.fullName, author }));
+  api.get('/lists/', async (req, res) => res.json(await repository.getLists(author.login)));
+  api.post('/lists/', async (req, res) => {
+    const input = validateList(req.body);
+    const created = await repository.createList(author.login, input);
+    if (!created) return res.status(409).json({ error: 'Список с таким runId уже существует' });
+    res.location(`/api/lists/${created.id}/`).status(201).json(created);
+  });
   api.post('/tasks/', async (req, res) => {
     const input = validateBody(req.body);
     const created = await repository.create(author.login, input);
@@ -75,6 +93,24 @@ export function createApp({ author, tokens, repository }) {
     if (id.length !== 36 || !uuid.test(id)) return next(new InputError('Некорректный UUID'));
     req.params.id = id.toLowerCase();
     next();
+  });
+  api.get('/lists/:id/', async (req, res) => {
+    const list = await repository.getList(author.login, req.params.id);
+    if (!list) return res.status(404).json({ error: 'Список не найден' });
+    res.json(list);
+  });
+  api.patch('/lists/:id/', async (req, res) => {
+    const input = validateList(req.body, true);
+    const list = await repository.renameList(author.login, req.params.id, input.name);
+    if (!list) return res.status(404).json({ error: 'Список не найден' });
+    res.json(list);
+  });
+  api.get('/lists/:id/tasks/', async (req, res) => {
+    const filter = req.query.status ?? 'all';
+    if (!['all', 'active', 'done'].includes(filter)) throw new InputError('Некорректный статус');
+    const list = await repository.getList(author.login, req.params.id);
+    if (!list) return res.status(404).json({ error: 'Список не найден' });
+    res.json({ list, tasks: await repository.list(author.login, list.runId, filter) });
   });
   api.get('/tasks/:id/', async (req, res) => {
     const found = await repository.get(author.login, req.params.id);

@@ -6,6 +6,7 @@ export function readConfig(env = process.env) {
   if ([env.API_TOKEN, env.REVIEWER_API_TOKEN].some(value => value && value.length < 32)) {
     throw new Error('API-токен должен содержать не менее 32 символов');
   }
+  if (env.REVIEWER_API_TOKEN === env.API_TOKEN) throw new Error('Токены автора и преподавателя должны различаться');
   const port = Number(env.PORT || 3000);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Некорректный PORT');
   return {

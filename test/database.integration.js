@@ -14,6 +14,7 @@ test(remoteBase ? 'deployed HTTPS API: independent PostgreSQL CRUD and permissio
   const reviewer = createPool(config, process.env.REVIEWER_DATABASE_URL);
   const repository = createTaskRepository(pool);
   const runId = `check_${randomUUID().replaceAll('-', '')}`;
+  const folderRunId = runId + '_folder';
   let server;
   async function start() { server = createApp({ ...config, repository }).listen(0, '127.0.0.1'); await once(server, 'listening'); return `http://127.0.0.1:${server.address().port}`; }
   if (remoteBase) assert.match(remoteBase, /^https:\/\//, 'Размещённый API должен использовать HTTPS');
@@ -35,10 +36,23 @@ test(remoteBase ? 'deployed HTTPS API: independent PostgreSQL CRUD and permissio
     await assert.rejects(reviewer.query('TRUNCATE public.tasks'), e => e.code === '42501');
     const created = await api('tasks/', 'POST', { title: 'Проверка через API', runId }); assert.equal(created.status, 201);
     const task = await created.json();
+    assert.deepEqual(Object.keys(task).sort(), ['id','ownerLogin','title','done','runId','createdAt'].sort());
+    const registered = (await (await api('lists/')).json()).find(list => list.runId === runId);
+    assert.ok(registered, 'Обязательный POST с произвольным runId автоматически регистрирует список');
+    const folderResponse = await api('lists/', 'POST', { name: 'Отдельный список', runId: folderRunId }); assert.equal(folderResponse.status, 201);
+    const folder = await folderResponse.json();
+    assert.equal((await api(`lists/${folder.id}/`, 'PATCH', { name: 'Новое название' })).status, 200);
+    const folderPayload = await (await api(`lists/${folder.id}/tasks/`)).json();
+    assert.equal(folderPayload.list.name, 'Новое название'); assert.equal(folderPayload.list.runId, folderRunId); assert.deepEqual(folderPayload.tasks, []);
+    assert.equal((await api(`lists/${folder.id}/`, 'PATCH', { name: 'x', runId: 'forbidden' })).status, 400);
+    const reviewerSession = await fetch(base + '/api/session/', { headers: { Authorization: `Bearer ${process.env.REVIEWER_API_TOKEN}` } });
+    assert.equal((await reviewerSession.json()).displayName, 'Преподаватель');
     const stored = await reviewer.query('SELECT title, owner_login, done FROM public.tasks WHERE id=$1', [task.id]);
     assert.equal(stored.rows[0].title, task.title); assert.equal(stored.rows[0].owner_login, config.author.login); assert.equal(stored.rows[0].done, false);
     const patched = await api(`tasks/${task.id}/`, 'PATCH', { done: true }); assert.equal(patched.status, 200);
     assert.equal((await reviewer.query('SELECT done FROM public.tasks WHERE id=$1', [task.id])).rows[0].done, true);
+    const donePayload = await (await api(`lists/${registered.id}/tasks/?status=done`)).json();
+    assert.equal(donePayload.tasks.length, 1); assert.equal(donePayload.list.doneCount, 1);
     await reviewer.query('UPDATE public.tasks SET title=$1, done=false WHERE id=$2', ['Изменено независимо в БД', task.id]);
     assert.equal((await (await api(`tasks/${task.id}/`)).json()).title, 'Изменено независимо в БД');
     if (!remoteBase) { await new Promise(resolve => server.close(resolve)); base = await start(); }
@@ -55,7 +69,8 @@ test(remoteBase ? 'deployed HTTPS API: independent PostgreSQL CRUD and permissio
     if (!remoteBase) assert.equal((await api('tasks/?runId=' + runId)).status, 503);
   } finally {
     try {
-      await reviewer.query('DELETE FROM public.tasks WHERE owner_login=$1 AND run_id=$2', [config.author.login, runId]);
+      await reviewer.query('DELETE FROM public.tasks WHERE owner_login=$1 AND run_id=ANY($2::text[])', [config.author.login, [runId, folderRunId]]);
+      await reviewer.query('DELETE FROM public.task_lists WHERE owner_login=$1 AND run_id=ANY($2::text[])', [config.author.login, [runId, folderRunId]]);
     } finally {
       if (server) await new Promise(resolve => server.close(resolve));
       await Promise.all([pool.ended ? Promise.resolve() : pool.end(), reviewer.end()]);

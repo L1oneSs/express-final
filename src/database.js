@@ -24,12 +24,34 @@ function task(row) {
     runId: row.run_id, createdAt: new Date(row.created_at).toISOString(),
   };
 }
+const listFields = `l.id,l.run_id,l.name,l.created_at,
+  (SELECT count(*)::int FROM public.tasks t WHERE t.owner_login=l.owner_login AND t.run_id=l.run_id) AS task_count,
+  (SELECT count(*)::int FROM public.tasks t WHERE t.owner_login=l.owner_login AND t.run_id=l.run_id AND t.done) AS done_count`;
+function taskList(row) {
+  return row && { id: row.id, runId: row.run_id, name: row.name, taskCount: row.task_count ?? 0, doneCount: row.done_count ?? 0, createdAt: new Date(row.created_at).toISOString() };
+}
 
 export function createTaskRepository(pool) {
   return {
-    async list(owner, runId) {
-      const result = await pool.query(`SELECT ${fields} FROM public.tasks WHERE owner_login=$1 AND run_id=$2 ORDER BY created_at, id`, [owner, runId]);
+    async list(owner, runId, status = 'all') {
+      const result = await pool.query(`SELECT ${fields} FROM public.tasks WHERE owner_login=$1 AND run_id=$2 AND ($3::boolean IS NULL OR done=$3) ORDER BY created_at, id`, [owner, runId, status === 'all' ? null : status === 'done']);
       return result.rows.map(task);
+    },
+    async getLists(owner) {
+      const result = await pool.query(`SELECT ${listFields} FROM public.task_lists l WHERE l.owner_login=$1 ORDER BY (l.run_id='manual') DESC,l.created_at,l.id`, [owner]);
+      return result.rows.map(taskList);
+    },
+    async getList(owner, id) {
+      const result = await pool.query(`SELECT ${listFields} FROM public.task_lists l WHERE l.owner_login=$1 AND l.id=$2`, [owner, id]);
+      return taskList(result.rows[0]);
+    },
+    async createList(owner, { name, runId }) {
+      const result = await pool.query('INSERT INTO public.task_lists(owner_login,run_id,name) VALUES($1,$2,$3) ON CONFLICT (owner_login,run_id) DO NOTHING RETURNING *', [owner, runId, name]);
+      return taskList(result.rows[0]);
+    },
+    async renameList(owner, id, name) {
+      const result = await pool.query('UPDATE public.task_lists SET name=$3 WHERE owner_login=$1 AND id=$2 RETURNING id', [owner, id, name]);
+      return result.rowCount ? this.getList(owner, id) : undefined;
     },
     async get(owner, id) {
       const result = await pool.query(`SELECT ${fields} FROM public.tasks WHERE owner_login=$1 AND id=$2`, [owner, id]);
