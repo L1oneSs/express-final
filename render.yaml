@@ -21,7 +21,7 @@ services:
       - key: AUTHOR_LOGIN
         value: l1onesss
       - key: AUTHOR_FULL_NAME
-        value: Чирков Лев Сергеевич
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: API_TOKEN
