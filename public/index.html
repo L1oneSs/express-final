@@ -14,7 +14,7 @@
     <h2>Списки дел</h2>
     <button id="new-list" class="secondary new-list">＋ Новый список</button>
     <nav aria-label="Списки"><ul id="lists" class="lists"></ul></nav>
-    <div id="author-info" class="author"><span>Автор работы</span><strong id="author-name"></strong><span id="author-login"></span></div>
+    <p id="author-info" class="author">Работа: <span id="author-name"></span> · <span id="author-login"></span></p>
   </aside>
   <main id="main">
     <section id="login-panel" class="login-panel" aria-labelledby="login-heading">
@@ -23,16 +23,17 @@
     </section>
     <header id="session-header" class="session-header" hidden><div><strong id="profile-name"></strong><span id="profile-login"></span></div><button id="logout" class="secondary">Выйти</button></header>
     <section id="workspace" class="workspace" hidden aria-label="Список дел">
-      <div class="list-heading"><div><h1 id="list-name">Выберите список</h1><p id="list-summary"></p></div><button id="rename-list" class="secondary" hidden>Переименовать список</button></div>
+      <div class="list-heading"><div><h1 id="list-name">Выберите список</h1><p id="list-summary"></p></div><div class="list-actions"><button id="rename-list" class="secondary" hidden>Переименовать список</button><button id="delete-list" class="secondary destructive" hidden>Удалить список</button></div></div>
       <form id="add-form" class="composer"><label class="sr-only" for="new-title">Новое дело</label><input id="new-title" placeholder="Новое дело" required autocomplete="off"><button type="submit" class="primary">Добавить</button></form>
       <div class="filters" role="group" aria-label="Фильтр дел"><button data-filter="all" class="selected" aria-pressed="true">Все</button><button data-filter="active" aria-pressed="false">В процессе</button><button data-filter="done" aria-pressed="false">Готово</button></div>
       <ul id="tasks" class="tasks" aria-label="Дела"></ul>
       <p id="empty" class="empty" hidden>В этом списке нет дел.</p>
       <p id="loading" class="loading" hidden>Загрузка…</p>
     </section>
-    <p id="status" class="status" role="status" aria-live="polite"></p>
   </main>
+  <div id="toasts" class="toast-region" role="region" aria-label="Уведомления"></div>
   <dialog id="list-dialog"><form id="list-form"><h2 id="list-dialog-title">Новый список</h2><label for="folder-name">Название списка</label><input id="folder-name" required autocomplete="off"><p id="list-error" class="error" role="alert"></p><div class="dialog-actions"><button id="cancel-list" type="button" class="secondary">Отмена</button><button type="submit" class="primary">Сохранить</button></div></form></dialog>
   <dialog id="delete-dialog"><form method="dialog"><h2>Удалить дело?</h2><p id="delete-title"></p><div class="dialog-actions"><button value="cancel" class="secondary" autofocus>Отмена</button><button value="delete" class="danger">Удалить</button></div></form></dialog>
+  <dialog id="delete-list-dialog"><form method="dialog"><h2>Удалить список?</h2><p id="delete-list-description"></p><p class="delete-warning">Список и все его дела будут удалены без возможности восстановления.</p><div class="dialog-actions"><button value="cancel" class="secondary" autofocus>Отмена</button><button value="delete" class="danger">Удалить список</button></div></form></dialog>
 </body>
 </html>

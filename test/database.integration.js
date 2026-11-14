@@ -45,6 +45,12 @@ test(remoteBase ? 'deployed HTTPS API: independent PostgreSQL CRUD and permissio
     const folderPayload = await (await api(`lists/${folder.id}/tasks/`)).json();
     assert.equal(folderPayload.list.name, 'Новое название'); assert.equal(folderPayload.list.runId, folderRunId); assert.deepEqual(folderPayload.tasks, []);
     assert.equal((await api(`lists/${folder.id}/`, 'PATCH', { name: 'x', runId: 'forbidden' })).status, 400);
+    const folderTask = await (await api('tasks/', 'POST', { title: 'Удаляется со списком', runId: folderRunId })).json();
+    assert.equal((await api(`lists/${folder.id}/`, 'DELETE')).status, 204);
+    assert.equal((await api(`lists/${folder.id}/`)).status, 404);
+    assert.equal((await api(`tasks/${folderTask.id}/`)).status, 404);
+    assert.equal((await reviewer.query('SELECT id FROM public.tasks WHERE id=$1', [folderTask.id])).rowCount, 0);
+    assert.equal((await api(`tasks/${task.id}/`)).status, 200, 'Другие списки не затронуты');
     const reviewerSession = await fetch(base + '/api/session/', { headers: { Authorization: `Bearer ${process.env.REVIEWER_API_TOKEN}` } });
     assert.equal((await reviewerSession.json()).displayName, 'Преподаватель');
     const stored = await reviewer.query('SELECT title, owner_login, done FROM public.tasks WHERE id=$1', [task.id]);

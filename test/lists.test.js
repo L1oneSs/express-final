@@ -11,6 +11,7 @@ const repository = {
   getList: async (owner, id) => lists.get(id)?.owner === owner ? (({ owner, ...list }) => list)(lists.get(id)) : undefined,
   createList: async (owner, input) => { if ([...lists.values()].some(list => list.owner === owner && list.runId === input.runId)) return; const list = { id: randomUUID(), ...input, owner, taskCount: 0, doneCount: 0, createdAt: new Date().toISOString() }; lists.set(list.id, list); return repository.getList(owner, list.id); },
   renameList: async (owner, id, name) => { if (lists.get(id)?.owner !== owner) return; lists.get(id).name = name; return repository.getList(owner, id); },
+  removeList: async (owner, id) => lists.get(id)?.owner === owner && lists.delete(id),
   list: async (owner, runId, status) => [{ id: randomUUID(), ownerLogin: owner, runId, title: status, done: status === 'done', createdAt: new Date().toISOString() }],
 };
 let server, base;
@@ -36,11 +37,15 @@ test('named lists: creation, rename, stable runId, metadata and filtering', asyn
   const generated = await (await api('lists/', 'POST', { name: 'Без технического ключа' })).json(); assert.match(generated.runId, /^list_[a-f0-9]{32}$/);
   const hidden = randomUUID(); lists.set(hidden, { id: hidden, owner: 'other', name: 'Чужой список', runId: 'private' });
   assert.equal((await api(`lists/${hidden}/`)).status, 404); assert.equal((await api(`lists/${hidden}/`, 'PATCH', { name: 'Подмена' })).status, 404);
+  assert.equal((await api(`lists/${hidden}/`, 'DELETE')).status, 404);
+  const deleted = await api(`lists/${generated.id}/`, 'DELETE'); assert.equal(deleted.status, 204); assert.equal(await deleted.text(), '');
+  assert.equal((await api(`lists/${generated.id}/`, 'DELETE')).status, 404);
 });
 test('list input validation rejects empty names, types, extra fields and invalid identifiers', async () => {
   for (const body of [{}, [], null, { name: '' }, { name: ' ' }, { name: 5 }, { name: 'x'.repeat(101) }, { name: 'x', runId: 'a\n' }, { name: 'x', ownerLogin: 'other' }]) assert.equal((await api('lists/', 'POST', body)).status, 400);
   const id = randomUUID();
   for (const body of [{}, { name: 'x', runId: 'new' }, { name: null }]) assert.equal((await api(`lists/${id}/`, 'PATCH', body)).status, 400);
   assert.equal((await api('lists/invalid/')).status, 400);
+  assert.equal((await api('lists/invalid/', 'DELETE')).status, 400);
   assert.equal((await api(`lists/${id}/`)).status, 404);
 });

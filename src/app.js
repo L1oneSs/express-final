@@ -112,6 +112,10 @@ export function createApp({ author, tokens, repository }) {
     if (!list) return res.status(404).json({ error: 'Список не найден' });
     res.json({ list, tasks: await repository.list(author.login, list.runId, filter) });
   });
+  api.delete('/lists/:id/', async (req, res) => {
+    if (!await repository.removeList(author.login, req.params.id)) return res.status(404).json({ error: 'Список не найден' });
+    res.status(204).end();
+  });
   api.get('/tasks/:id/', async (req, res) => {
     const found = await repository.get(author.login, req.params.id);
     if (!found) return res.status(404).json({ error: 'Дело не найдено' });

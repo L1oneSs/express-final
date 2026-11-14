@@ -1,14 +1,22 @@
 const $ = selector => document.querySelector(selector);
 const state = { token: '', lists: [], selectedId: null, currentList: null, tasks: [], filter: 'all', request: 0, loading: false, editing: false, mutating: 0, snapshot: '', listMode: 'create' };
 const length = value => Array.from(value.trim()).length;
-function status(message = '', error = false) { $('#status').textContent = message; $('#status').classList.toggle('error', error); }
+function status(message = '', error = false) {
+  if (!message || [...$('#toasts').children].some(node => node.dataset.message === message)) return;
+  const toast = element('div', `toast${error ? ' toast-error' : ''}`); toast.dataset.message = message; toast.setAttribute('role', error ? 'alert' : 'status');
+  const close = element('button', 'toast-close', '×'); close.setAttribute('aria-label', 'Закрыть уведомление'); close.addEventListener('click', () => toast.remove());
+  toast.append(element('span', '', message), close); $('#toasts').append(toast);
+  while ($('#toasts').children.length > 3) $('#toasts').firstElementChild.remove();
+  let timer; const pause = () => clearTimeout(timer); const resume = () => { pause(); timer = setTimeout(() => toast.remove(), error ? 7000 : 4000); };
+  toast.addEventListener('mouseenter', pause); toast.addEventListener('mouseleave', resume); toast.addEventListener('focusin', pause); toast.addEventListener('focusout', resume); resume();
+}
 function element(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
 function logout() {
   state.token = ''; state.tasks = []; state.lists = []; state.selectedId = null; state.currentList = null; state.snapshot = ''; state.editing = false; state.request++;
   document.body.classList.remove('authenticated');
   for (const selector of ['#navigation', '#session-header', '#workspace']) $(selector).hidden = true;
   $('#login-panel').hidden = false; $('#token').value = ''; $('#tasks').replaceChildren(); $('#lists').replaceChildren();
-  $('#list-dialog').close(); $('#delete-dialog').close();
+  $('#list-dialog').close(); $('#delete-dialog').close(); $('#delete-list-dialog').close(); $('#toasts').replaceChildren();
 }
 async function api(path, options = {}) {
   let response;
@@ -30,7 +38,7 @@ function render() {
   const list = state.currentList;
   $('#list-name').textContent = list?.name || 'Создайте список';
   $('#list-summary').textContent = list ? `Всего: ${list.taskCount} · Выполнено: ${list.doneCount}` : '';
-  $('#rename-list').hidden = !list; $('#add-form').hidden = !list; $('.filters').hidden = !list;
+  $('#rename-list').hidden = !list; $('#delete-list').hidden = !list; $('#add-form').hidden = !list; $('.filters').hidden = !list;
   $('#empty').hidden = state.tasks.length > 0;
   $('#empty').textContent = !list ? 'Нажмите «Новый список».' : state.filter === 'all' ? 'В этом списке нет дел.' : 'Нет дел с выбранным статусом.';
   $('#lists').replaceChildren(...state.lists.map(item => {
@@ -47,7 +55,7 @@ function render() {
     checkbox.addEventListener('change', () => withButton(checkbox, async () => {
       try { await api(`tasks/${task.id}/`, { method: 'PATCH', body: JSON.stringify({ done: checkbox.checked }) }); }
       catch (error) { checkbox.checked = task.done; throw error; }
-      await refresh();
+      const done = checkbox.checked; await refresh(); status(done ? 'Дело выполнено.' : 'Дело возвращено в работу.');
     }));
     const main = element('div', 'task-main'); main.append(element('p', 'task-title', task.title));
     const actions = element('div', 'task-actions');
@@ -73,7 +81,6 @@ async function refresh(quiet = false) {
     const snapshot = JSON.stringify([lists, result, state.filter]);
     state.selectedId = selectedId; state.lists = lists; state.currentList = result.list; state.tasks = result.tasks;
     if (!quiet || snapshot !== state.snapshot) { state.snapshot = snapshot; render(); }
-    if ($('#status').classList.contains('error')) status();
   } catch (error) { if (request === state.request) status(error.message, true); }
   finally { if (request === state.request) { state.loading = false; $('#loading').hidden = true; } }
 }
@@ -83,7 +90,7 @@ function editTask(task, container, button) {
   const save = element('button', 'primary', 'Сохранить'); save.type = 'submit'; const cancel = element('button', 'secondary', 'Отмена'); cancel.type = 'button';
   const cancelEdit = () => { state.editing = false; render(); }; cancel.addEventListener('click', cancelEdit);
   input.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); cancelEdit(); } });
-  form.addEventListener('submit', event => { event.preventDefault(); if (length(input.value) < 1 || length(input.value) > 200) return status('Название дела: от 1 до 200 символов.', true); withButton(save, async () => { await api(`tasks/${task.id}/`, { method: 'PATCH', body: JSON.stringify({ title: input.value }) }); state.editing = false; await refresh(); }); });
+  form.addEventListener('submit', event => { event.preventDefault(); if (length(input.value) < 1 || length(input.value) > 200) return status('Название дела: от 1 до 200 символов.', true); withButton(save, async () => { await api(`tasks/${task.id}/`, { method: 'PATCH', body: JSON.stringify({ title: input.value }) }); state.editing = false; await refresh(); status('Дело изменено.'); }); });
   form.append(input, save, cancel); container.replaceChildren(form); input.focus(); input.select();
 }
 function openListDialog(mode) {
@@ -92,6 +99,16 @@ function openListDialog(mode) {
 }
 $('#new-list').addEventListener('click', () => openListDialog('create'));
 $('#rename-list').addEventListener('click', () => openListDialog('rename'));
+$('#delete-list').addEventListener('click', () => {
+  const list = state.currentList; if (!list) return;
+  const dialog = $('#delete-list-dialog');
+  $('#delete-list-description').textContent = `«${list.name}». Сейчас дел в списке: ${list.taskCount}.`;
+  dialog.returnValue = ''; dialog.showModal();
+  dialog.addEventListener('close', () => {
+    if (dialog.returnValue !== 'delete') return;
+    withButton($('#delete-list'), async () => { await api(`lists/${list.id}/`, { method: 'DELETE' }); state.selectedId = null; state.filter = 'all'; state.editing = false; await refresh(); status('Список удалён.'); });
+  }, { once: true });
+});
 $('#cancel-list').addEventListener('click', () => $('#list-dialog').close());
 $('#list-form').addEventListener('submit', async event => {
   event.preventDefault(); const name = $('#folder-name').value;
@@ -99,7 +116,7 @@ $('#list-form').addEventListener('submit', async event => {
   const button = event.submitter; button.disabled = true; state.mutating++;
   try {
     const result = await api(state.listMode === 'create' ? 'lists/' : `lists/${state.selectedId}/`, { method: state.listMode === 'create' ? 'POST' : 'PATCH', body: JSON.stringify({ name }) });
-    state.selectedId = result.id; state.filter = 'all'; state.editing = false; $('#list-dialog').close(); await refresh(); status();
+    state.selectedId = result.id; state.filter = 'all'; state.editing = false; $('#list-dialog').close(); await refresh(); status(state.listMode === 'create' ? 'Список создан.' : 'Список переименован.');
   } catch (error) { $('#list-error').textContent = error.message; }
   finally { state.mutating--; button.disabled = false; }
 });
@@ -119,7 +136,7 @@ $('#add-form').addEventListener('submit', event => {
   event.preventDefault(); const input = $('#new-title');
   if (length(input.value) < 1 || length(input.value) > 200) return status('Название дела: от 1 до 200 символов.', true);
   const runId = state.currentList.runId;
-  withButton(event.submitter, async () => { await api('tasks/', { method: 'POST', body: JSON.stringify({ title: input.value, runId }) }); input.value = ''; state.filter = 'all'; state.editing = false; await refresh(); input.focus(); });
+  withButton(event.submitter, async () => { await api('tasks/', { method: 'POST', body: JSON.stringify({ title: input.value, runId }) }); input.value = ''; state.filter = 'all'; state.editing = false; await refresh(); status('Дело добавлено.'); input.focus(); });
 });
 document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => { state.filter = button.dataset.filter; state.editing = false; refresh(); }));
 window.addEventListener('focus', () => refresh(true));

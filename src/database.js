@@ -53,6 +53,19 @@ export function createTaskRepository(pool) {
       const result = await pool.query('UPDATE public.task_lists SET name=$3 WHERE owner_login=$1 AND id=$2 RETURNING id', [owner, id, name]);
       return result.rowCount ? this.getList(owner, id) : undefined;
     },
+    async removeList(owner, id) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await client.query('SELECT run_id FROM public.task_lists WHERE owner_login=$1 AND id=$2 FOR UPDATE', [owner, id]);
+        if (!result.rowCount) { await client.query('ROLLBACK'); return false; }
+        await client.query('DELETE FROM public.tasks WHERE owner_login=$1 AND run_id=$2', [owner, result.rows[0].run_id]);
+        await client.query('DELETE FROM public.task_lists WHERE owner_login=$1 AND id=$2', [owner, id]);
+        await client.query('COMMIT');
+        return true;
+      } catch (error) { await client.query('ROLLBACK'); throw error; }
+      finally { client.release(); }
+    },
     async get(owner, id) {
       const result = await pool.query(`SELECT ${fields} FROM public.tasks WHERE owner_login=$1 AND id=$2`, [owner, id]);
       return task(result.rows[0]);

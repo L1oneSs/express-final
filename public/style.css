@@ -150,16 +150,10 @@ input:focus {
 .author {
   border-top: 1px solid var(--line);
   padding: 18px 10px 0;
-  display: grid;
-  gap: 6px;
+  display: block;
+  line-height: 1.7;
   font-size: 12px;
   color: var(--muted);
-}
-.author strong {
-  color: #36414c;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.5;
 }
 main {
   min-height: 100vh;
@@ -216,9 +210,18 @@ main {
 .list-heading > div {
   min-width: 0;
 }
-.list-heading > button {
+.list-actions > button {
   font-size: 12px;
+}
+.list-actions {
+  display: flex;
+  max-width: 100%;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.destructive {
+  color: #ad332d;
 }
 .composer {
   display: flex;
@@ -323,13 +326,59 @@ main {
   font-size: 14px;
   padding: 35px 0;
 }
-.status {
-  font-size: 13px;
-  line-height: 1.6;
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 18px 40px;
-  color: #315d4c;
+.toast-region {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  width: min(360px, calc(100% - 40px));
+  display: grid;
+  gap: 10px;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 9px;
+  background: #fff;
+  color: #202830;
+  box-shadow: 0 6px 28px #18232e22;
+  font-size: 14px;
+  line-height: 1.5;
+  pointer-events: auto;
+  animation: toast-in 0.18s ease-out;
+}
+.toast > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.toast-error {
+  border-left-color: #b13f38;
+}
+.toast-close {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  padding: 0 2px;
+}
+.delete-warning {
+  color: #ad332d;
+  margin-top: 12px;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .error {
   color: #ad332d !important;
@@ -437,9 +486,6 @@ dialog p {
     padding: 0;
   }
   .author {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 10px;
     padding: 12px 0 0;
   }
   .authenticated main {
@@ -462,11 +508,8 @@ dialog p {
   .list-heading h1 {
     font-size: 25px;
   }
-  .list-heading > button {
+  .list-actions > button {
     padding: 8px 10px;
-  }
-  .status {
-    padding: 16px 20px;
   }
   .task {
     gap: 10px;
@@ -503,6 +546,9 @@ dialog p {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
   button {
     transition: none;
   }
