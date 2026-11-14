@@ -5,7 +5,8 @@
 - Автор: `l1onesss` — Чирков Лев Сергеевич.
 - Репозиторий: https://github.com/L1oneSs/express-final
 - PostgreSQL: Supabase 17.11, таблица `public.tasks`.
-- HTTPS: пока не опубликован; требуется подключение Render.
+- HTTPS: https://express-final-l1onesss.onrender.com
+- Render: `express-final-l1onesss`, Free, Frankfurt, `srv-dbs33567bikc73efe2ng`, автоматическая публикация ветки `main`.
 - Схема уже применена к Supabase через MCP. Повторно `db:init` здесь не запускать.
 - `.private/access.md` содержит реальные отдельные реквизиты. Этот файл не коммитить и целиком не пересылать.
 
@@ -45,6 +46,17 @@ ALTER ROLE todo_reviewer SET statement_timeout = '8s';
 4. Секретами задать `DATABASE_URL` (роль приложения), `API_TOKEN` и `REVIEWER_API_TOKEN` из закрытого локального файла. Не передавать на Render `DATABASE_ADMIN_URL`, `REVIEWER_DATABASE_URL` и пароль Helios.
 5. После Deploy сохранить фактический HTTPS-адрес в README и этот документ. Проверить `/login/`, 401 без токена и полный CRUD с токеном. В `.env` временно задать `APP_URL` опубликованного сайта и выполнить `npm run seed` для проверки персонального дела через опубликованный API.
 6. Для браузерного теста опубликованной версии также использовать `APP_URL`; тест работает в отдельном случайном runId и очищает только свои записи.
+
+Для проверки опубликованного API и независимого доступа к БД:
+
+```powershell
+$env:APP_URL='https://express-final-l1onesss.onrender.com'
+npm.cmd run test:integration
+npm.cmd run test:browser
+Remove-Item Env:APP_URL
+```
+
+При заданном APP_URL интеграционный тест использует размещённый HTTPS API; перезапуск процесса и искусственный отказ его пула проверяются только в локальном режиме. Настоящий сайт ради теста не останавливается.
 
 Render Free засыпает после 15 минут без входящих запросов; пробуждение может занять примерно минуту. Месячный лимит Free — 750 часов на workspace. Supabase Free может приостановиться после недели неактивности. Перед проверкой открыть сайт и убедиться, что база активна; приложение должно оставаться доступным на весь период проверки. Платные услуги для этого проекта не заказывались. [Официальные ограничения Render](https://render.com/docs/free), проверены 14.11.2026.
 

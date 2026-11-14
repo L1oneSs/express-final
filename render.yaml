@@ -1,8 +1,9 @@
 services:
   - type: web
-    name: quiet-tasks
+    name: express-final-l1onesss
     runtime: node
     plan: free
+    region: frankfurt
     buildCommand: npm ci --omit=dev
     startCommand: npm run start:production
     healthCheckPath: /health/
