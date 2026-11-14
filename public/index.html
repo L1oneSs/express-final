@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f4">
+  <title>Тихий список — мои дела</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a href="/" class="brand"><span class="brand-symbol" aria-hidden="true">✓</span><span>тихий список<span class="brand-caption">МЕСТО ДЛЯ ВАШИХ ДЕЛ</span></span></a>
+    <div class="workspace-label">РАБОЧЕЕ ПРОСТРАНСТВО</div>
+    <a class="nav-item current" href="#main"><span aria-hidden="true">▤</span> Мои дела <span id="sidebar-count" class="count">0</span></a>
+    <div class="sidebar-note"><span class="note-mark" aria-hidden="true">✳</span><p>Всё большое начинается<br>с одного небольшого дела.</p></div>
+    <div class="profile"><span id="avatar" class="avatar" aria-hidden="true">ЛЧ</span><div><strong id="profile-name">Ваше пространство</strong><span id="profile-login">Войдите с токеном</span></div><button id="logout" class="icon-button" aria-label="Выйти" title="Выйти" hidden>↪</button></div>
+  </aside>
+  <main id="main" tabindex="-1">
+    <header class="topbar"><span>Личное пространство <span class="slash">/</span> Мои дела</span><span id="today" class="today"></span></header>
+    <div class="content">
+      <div class="eyebrow"><span></span> ОДНО ДЕЛО ЗА ДРУГИМ</div>
+      <div class="heading-row"><div><h1>Освободите мысли.<br><span>Запишите дела.</span></h1><p class="intro">Немного порядка, чтобы сосредоточиться на главном.</p></div><div class="heading-art" aria-hidden="true"><div class="art-paper"><i></i><i></i><i></i><b>✓</b></div><span class="art-star">✳</span></div></div>
+      <section id="login-panel" class="login-panel" aria-labelledby="login-heading">
+        <span class="login-icon" aria-hidden="true">⌘</span><div class="login-copy"><h2 id="login-heading">Ваши дела — в вашем пространстве</h2><p>Введите токен доступа, чтобы открыть список.</p></div>
+        <form id="login-form"><label class="sr-only" for="token">Токен доступа</label><input type="password" id="token" placeholder="Токен доступа" required autocomplete="off" spellcheck="false"><button type="submit" class="primary">Войти <span aria-hidden="true">↗</span></button></form>
+      </section>
+      <section id="workspace" hidden aria-label="Список дел">
+        <div class="stats"><div><span id="total-stat">0</span><small>всего дел</small></div><div><span id="active-stat">0</span><small>в процессе</small></div><div><span id="done-stat">0</span><small>завершено</small></div><div class="progress-block"><span id="progress-label">Каждое дело — маленький шаг</span><progress id="progress" value="0" max="100" aria-label="Доля выполненных дел"></progress></div></div>
+        <div class="section-heading"><h2>Мои дела <span id="list-count">0</span></h2><button id="refresh" class="text-button" title="Загрузить актуальные данные">↻ <span>Обновить</span></button></div>
+        <form id="run-form" class="run-form"><label for="run-id">Список</label><input id="run-id" value="manual" pattern="[A-Za-z0-9_-]{1,64}" maxlength="64" required autocomplete="off" spellcheck="false"><button type="submit" class="text-button">Открыть →</button><span class="run-hint">Отдельное пространство для каждого списка</span></form>
+        <form id="add-form" class="composer"><span class="composer-plus" aria-hidden="true">＋</span><label class="sr-only" for="new-title">Новое дело</label><input id="new-title" placeholder="Что нужно сделать?" required autocomplete="off"><button type="submit" class="primary">Добавить <span aria-hidden="true">↗</span></button></form>
+        <div class="list-toolbar"><div class="filters" role="group" aria-label="Фильтр дел"><button class="selected" data-filter="all" aria-pressed="true">Все <span id="all-count">0</span></button><button data-filter="active" aria-pressed="false">В процессе</button><button data-filter="done" aria-pressed="false">Готово</button></div><span class="sort-label">По времени создания ↓</span></div>
+        <div id="loading" class="loading" hidden>Загружаем дела…</div>
+        <ul id="tasks" class="tasks" aria-label="Дела"></ul>
+        <div id="empty" class="empty" hidden><span class="empty-symbol" aria-hidden="true">✓</span><h3>Здесь есть место для нового</h3><p>Добавьте первое дело — и мысли станут чуть свободнее.</p></div>
+        <div class="list-footer"><span><span class="status-dot"></span> <span id="sync-status">Данные загружены</span></span><span id="remaining">Нет незавершённых дел</span></div>
+      </section>
+      <p id="status" role="status" aria-live="polite"></p>
+      <footer class="page-footer"><span>Меньше спешки. Больше ясности.</span><span>Сделано с вниманием к деталям <span aria-hidden="true">✳</span></span></footer>
+    </div>
+  </main>
+  <dialog id="delete-dialog"><form method="dialog"><span class="dialog-mark" aria-hidden="true">−</span><h2>Удалить дело?</h2><p id="delete-title"></p><p class="muted">Дело будет удалено из списка.</p><div class="dialog-actions"><button value="cancel" class="secondary" autofocus>Оставить</button><button value="delete" class="danger">Удалить</button></div></form></dialog>
+</body>
+</html>

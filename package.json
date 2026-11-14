@@ -1,0 +1,27 @@
+{
+  "name": "express-final-tasks",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Учебный список дел: Express и PostgreSQL",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --watch --env-file=.env src/server.js",
+    "start:production": "node src/server.js",
+    "db:init": "node --env-file=.env scripts/init-db.js",
+    "seed": "node --env-file=.env scripts/seed.js",
+    "test": "node --test test/*.test.js",
+    "test:integration": "node --env-file=.env --test test/database.integration.js",
+    "test:browser": "node --env-file=.env --test test/browser.integration.js"
+  },
+  "dependencies": {
+    "express": "5.3.0",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1"
+  }
+}

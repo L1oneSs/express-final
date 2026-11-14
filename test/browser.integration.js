@@ -1,0 +1,61 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { chromium } from 'playwright';
+
+test('browser: token login, author, real CRUD, filters and mobile layout', { timeout: 60000 }, async () => {
+  assert.ok(process.env.API_TOKEN, 'Нужна API_TOKEN из .env');
+  const base = process.env.APP_URL || 'http://127.0.0.1:3000';
+  const runId = `ui_${randomUUID().replaceAll('-', '')}`;
+  const browser = await chromium.launch({ ...(process.platform === 'win32' ? { channel: process.env.BROWSER_CHANNEL || 'msedge' } : {}), headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const headers = { Authorization: `Bearer ${process.env.API_TOKEN}` };
+  try {
+    await page.goto(base);
+    await page.getByLabel('Токен доступа').fill(process.env.API_TOKEN);
+    await page.getByRole('button', { name: 'Войти' }).click();
+    await page.locator('#workspace').waitFor({ state: 'visible' });
+    await page.getByText(process.env.AUTHOR_FULL_NAME, { exact: true }).waitFor();
+    await page.getByLabel('Список', { exact: true }).fill(runId);
+    await page.getByRole('button', { name: 'Открыть →' }).click();
+    await page.locator('#loading').waitFor({ state: 'hidden' });
+    await page.getByLabel('Новое дело', { exact: true }).fill('<b>Учебное дело</b>');
+    await page.getByRole('button', { name: 'Добавить' }).click();
+    await page.locator('.task-title').filter({ hasText: '<b>Учебное дело</b>' }).waitFor();
+    assert.equal(await page.locator('.task-title b').count(), 0, 'Название выводится как текст');
+    await page.getByRole('button', { name: 'Изменить: <b>Учебное дело</b>', exact: true }).click();
+    await page.getByLabel('Новое название дела').fill('Обновлено в браузере');
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await page.getByText('Обновлено в браузере', { exact: true }).waitFor();
+    await page.getByRole('checkbox').check();
+    await page.locator('.task.done').waitFor();
+    await page.getByRole('button', { name: 'В процессе', exact: true }).click();
+    assert.equal(await page.locator('.task').count(), 0);
+    await page.getByRole('button', { name: 'Готово', exact: true }).click();
+    assert.equal(await page.locator('.task').count(), 1);
+    await page.getByRole('button', { name: 'Удалить: Обновлено в браузере', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Удалить', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Дело удалено.' }).waitFor();
+    assert.equal(await page.locator('.task').count(), 0);
+    await page.getByLabel('Список', { exact: true }).fill('manual');
+    await page.getByRole('button', { name: 'Открыть →' }).click();
+    await page.locator('[data-filter="all"]').click();
+    await page.getByText(`Итоговая работа 24.10.2026: ${process.env.AUTHOR_LOGIN}`, { exact: true }).waitFor();
+    await mkdir('.private', { recursive: true });
+    await page.screenshot({ path: '.private/desktop.png', fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Нет горизонтального скролла на мобильном экране');
+    await page.screenshot({ path: '.private/mobile.png', fullPage: true });
+    await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+    await page.locator('#login-panel').waitFor({ state: 'visible' });
+    assert.equal(await page.getByLabel('Токен доступа').inputValue(), '');
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    const response = await fetch(`${base}/api/tasks/?runId=${runId}`, { headers });
+    if (response.ok) for (const task of await response.json()) await fetch(`${base}/api/tasks/${task.id}/`, { method: 'DELETE', headers });
+  }
+});

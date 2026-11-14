@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: quiet-tasks
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run start:production
+    healthCheckPath: /health/
+    envVars:
+      - key: NODE_VERSION
+        value: 22.17.0
+      - key: HOST
+        value: 0.0.0.0
+      - key: NODE_ENV
+        value: production
+      - key: DB_SSL
+        value: "true"
+      - key: DB_SSL_CA_FILE
+        value: certs/supabase-ca.crt
+      - key: AUTHOR_LOGIN
+        value: l1onesss
+      - key: AUTHOR_FULL_NAME
+        value: Чирков Лев Сергеевич
+      - key: DATABASE_URL
+        sync: false
+      - key: API_TOKEN
+        sync: false
+      - key: REVIEWER_API_TOKEN
+        sync: false

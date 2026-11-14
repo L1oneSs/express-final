@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.*
+!.env.example
+secrets.md
+secret.md
+.private/
+.tmp/
+.agents/
+.codex/
+skills-lock.json
+coverage/
+dist/
+*.log
